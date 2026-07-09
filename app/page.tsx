@@ -34,21 +34,55 @@ export default function Home(){
   const [deals,setDeals] = useState<Row[]>([]);
   const [logs,setLogs] = useState<Row[]>([]);
   const [models,setModels] = useState<Row[]>([]);
+async function loadCarModelsV3() {
+  let all: any[] = [];
+  let from = 0;
+  const pageSize = 5000;
 
+  while (true) {
+    const { data, error } = await supabase
+      .from("car_models_v3")
+      .select("*")
+      .order("brand")
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      console.error(error);
+      break;
+    }
+
+    if (!data || data.length === 0) break;
+
+    all = [...all, ...data];
+
+    console.log(
+      "已读取",
+      all.length,
+      "/",
+      from,
+      "~",
+      from + pageSize - 1
+    );
+
+    if (data.length < pageSize) break;
+
+    from += pageSize;
+  }
+
+  console.log("最终读取数量：", all.length);
+
+  return all;
+}
   async function loadAll(){
     setLoading(true);
 
-    const [c,v,a,d,l,m] = await Promise.all([
+   const [c,v,a,d,l,models] = await Promise.all([
       supabase.from('customers').select('*').order('created_at',{ascending:false}),
       supabase.from('vehicle_search').select('*').order('created_at',{ascending:false}),
       supabase.from('auctions').select('*').order('created_at',{ascending:false}),
       supabase.from('deals').select('*').order('created_at',{ascending:false}),
       supabase.from('follow_logs').select('*').order('created_at',{ascending:false}),
-      supabase
-        .from('car_models_v3')
-        .select('*')
-        .order('brand')
-        .range(0,250000)
+   loadCarModelsV3()
     ]);
 
     setCustomers(c.data || []);
@@ -56,11 +90,9 @@ export default function Home(){
     setAuctions(a.data || []);
     setDeals(d.data || []);
     setLogs(l.data || []);
-console.log("Supabase返回数量：", m.data?.length);
-console.log("第一条：", m.data?.[0]);
-console.log("最后一条：", m.data?.[m.data.length - 1]);
 
-setModels(m.data || []);
+
+setModels(models);
     setLoading(false);
   }
 
