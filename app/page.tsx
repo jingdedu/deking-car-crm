@@ -48,7 +48,7 @@ export default function Home(){
         .from('car_models_v3')
         .select('*')
         .order('brand')
-        .range(0, 30000)
+        .range(0,250000)
     ]);
 
     setCustomers(c.data || []);
