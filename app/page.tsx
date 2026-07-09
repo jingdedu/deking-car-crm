@@ -36,7 +36,7 @@ export default function Home(){
       supabase.from('auctions').select('*').order('created_at',{ascending:false}),
       supabase.from('deals').select('*').order('created_at',{ascending:false}),
       supabase.from('follow_logs').select('*').order('created_at',{ascending:false}),
-    supabase
+      supabase
   .from('car_models_v3')
   .select('*')
   .order('brand')
