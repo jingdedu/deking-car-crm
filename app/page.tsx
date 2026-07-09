@@ -56,7 +56,11 @@ export default function Home(){
     setAuctions(a.data || []);
     setDeals(d.data || []);
     setLogs(l.data || []);
-    setModels(m.data || []);
+    console.log("car_models_v3:", m.data?.length);
+console.log("first:", m.data?.[0]);
+console.log("last:", m.data?.[m.data.length - 1]);
+
+setModels(m.data || []);
     setLoading(false);
   }
 
