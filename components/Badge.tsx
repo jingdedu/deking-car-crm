@@ -1,7 +1,8 @@
-export default function Badge({ value }: { value: string }) {
-  const v = value || '';
-  const cls = ['계약완료','已成交','중标','中标','출고완료'].includes(v) ? 'green'
-    : ['이탈','已流失','未中标','패찰'].includes(v) ? 'red'
-    : (v.includes('대기') || v.includes('等待') || v.includes('진행')) ? 'yellow' : '';
-  return <span className={`badge ${cls}`}>{v}</span>;
+export default function Badge({value}:any){
+  const v = String(value || '');
+  let cls = 'badge';
+  if(v.includes('완료') || v.includes('成交') || v.includes('中标')) cls += ' green';
+  else if(v.includes('대기') || v.includes('待') || v.includes('중')) cls += ' blue';
+  else if(v.includes('이탈') || v.includes('放弃') || v.includes('未')) cls += ' red';
+  return <span className={cls}>{v || '-'}</span>;
 }

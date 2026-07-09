@@ -1,3 +1,8 @@
-export default function Modal({ title, children, onClose }: any) {
-  return <div className="modalBackdrop"><div className="modal"><div className="modalHead"><h2>{title}</h2><button className="btn secondary" onClick={onClose}>닫기</button></div>{children}</div></div>;
+export default function Modal({title,onClose,children}:any){
+  return <div className="modalBg" onClick={onClose}>
+    <div className="modal" onClick={e=>e.stopPropagation()}>
+      <div className="modalHead"><h2>{title}</h2><button className="iconBtn" onClick={onClose}>×</button></div>
+      {children}
+    </div>
+  </div>;
 }

@@ -1,3 +1,3 @@
-export default function Field({ label, children }: any) {
-  return <div className="field"><label>{label}</label>{children}</div>;
+export default function Field({label,children}:any){
+  return <label className="field"><span>{label}</span>{children}</label>;
 }
