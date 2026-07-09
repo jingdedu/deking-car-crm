@@ -60,6 +60,10 @@ console.log("car_models_v3:", m.data?.length);
 console.log("first:", m.data?.[0]);
 console.log("last:", m.data?.[m.data.length - 1]);
 
+console.log("Supabase返回数量：", m.data?.length);
+console.log("第一条：", m.data?.[0]);
+console.log("最后一条：", m.data?.[m.data.length - 1]);
+
 setModels(m.data || []);
     setLoading(false);
   }
