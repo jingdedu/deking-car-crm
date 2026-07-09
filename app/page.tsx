@@ -36,7 +36,10 @@ export default function Home(){
       supabase.from('auctions').select('*').order('created_at',{ascending:false}),
       supabase.from('deals').select('*').order('created_at',{ascending:false}),
       supabase.from('follow_logs').select('*').order('created_at',{ascending:false}),
-      supabase.from('car_models_v3').select('*').order('brand'),
+     supabase
+  .from('car_models_v3')
+  .select('*')
+  .order('brand'),
     ]);
     setCustomers(c.data || []); setVehicles(v.data || []); setAuctions(a.data || []); setDeals(d.data || []); setLogs(l.data || []); setModels(m.data || []);
     setLoading(false);
