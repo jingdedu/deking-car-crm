@@ -34,55 +34,17 @@ export default function Home(){
   const [deals,setDeals] = useState<Row[]>([]);
   const [logs,setLogs] = useState<Row[]>([]);
   const [models,setModels] = useState<Row[]>([]);
-async function loadCarModelsV3() {
-  let all: any[] = [];
-  let from = 0;
-  const pageSize = 5000;
 
-  while (true) {
-    const { data, error } = await supabase
-      .from("car_models_v3")
-      .select("*")
-      .order("brand")
-      .range(from, from + pageSize - 1);
-
-    if (error) {
-      console.error(error);
-      break;
-    }
-
-    if (!data || data.length === 0) break;
-
-    all = [...all, ...data];
-
-    console.log(
-      "已读取",
-      all.length,
-      "/",
-      from,
-      "~",
-      from + pageSize - 1
-    );
-
-    if (data.length < pageSize) break;
-
-    from += pageSize;
-  }
-
-  console.log("最终读取数量：", all.length);
-
-  return all;
-}
   async function loadAll(){
     setLoading(true);
 
-   const [c,v,a,d,l,models] = await Promise.all([
+    const [c,v,a,d,l,m] = await Promise.all([
       supabase.from('customers').select('*').order('created_at',{ascending:false}),
       supabase.from('vehicle_search').select('*').order('created_at',{ascending:false}),
       supabase.from('auctions').select('*').order('created_at',{ascending:false}),
       supabase.from('deals').select('*').order('created_at',{ascending:false}),
       supabase.from('follow_logs').select('*').order('created_at',{ascending:false}),
-   loadCarModelsV3()
+      supabase.rpc('get_car_brands')
     ]);
 
     setCustomers(c.data || []);
@@ -90,9 +52,7 @@ async function loadCarModelsV3() {
     setAuctions(a.data || []);
     setDeals(d.data || []);
     setLogs(l.data || []);
-
-
-setModels(models);
+    setModels((m.data || []).map((x:any)=>({ brand:x.brand, brand_en:'', model:'', model_en:'', category:'브랜드' })));
     setLoading(false);
   }
 
@@ -353,8 +313,8 @@ setModels(models);
 
     if(page==='models') return <div>
       <h2>차량 DB <span className="muted">车型数据库</span></h2>
-      <div className="small">현재 로드된 차량 데이터: {models.length.toLocaleString()}건 / 브랜드 {brands.length}개</div>
-      <DataTable headers={['브랜드','Brand','세부모델','Model EN','연식/등급','차급']} rows={models.slice(0,1000).map(m=>[
+      <div className="small">현재 브랜드 데이터: {brands.length}개 / 차량DB는 선택 시 실시간 조회</div>
+      <DataTable headers={['브랜드','Brand','세부모델','Model EN','연식/등급','차급']} rows={models.map(m=>[
         m.brand,m.brand_en,m.model,m.model_en,
         m.grade || [m.model_year, m.engine, m.drivetrain, m.trim].filter(Boolean).join(' '),
         m.category
@@ -367,8 +327,8 @@ setModels(models);
   return <div>
     <header>
       <div>
-        <h1>덕킹 중고차 대행경매 CRM Professional V4.0</h1>
-        <div className="small">한국어 중심 · 中文辅助 · car_models_v3 연동 · 개인/소규모 팀용</div>
+        <h1>덕킹 중고차 대행경매 CRM Professional V4.1</h1>
+        <div className="small">한국어 중심 · 中文辅助 · V4.1 온디맨드 차량DB 연동 · 개인/소규모 팀용</div>
       </div>
       <button className="btn secondary" onClick={loadAll}>새로고침</button>
     </header>
