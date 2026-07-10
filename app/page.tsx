@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { today, money, uniq, totalProfit } from '@/lib/utils';
+import { today, money, totalProfit } from '@/lib/utils';
 import Badge from '@/components/Badge';
 import Field from '@/components/Field';
 import Modal from '@/components/Modal';
@@ -33,7 +33,7 @@ export default function Home(){
   const [auctions,setAuctions] = useState<Row[]>([]);
   const [deals,setDeals] = useState<Row[]>([]);
   const [logs,setLogs] = useState<Row[]>([]);
-  const [models,setModels] = useState<Row[]>([]);
+  const [brands,setBrands] = useState<Row[]>([]);
 
   async function loadAll(){
     setLoading(true);
@@ -47,18 +47,21 @@ export default function Home(){
       supabase.rpc('get_car_brands')
     ]);
 
+    const errors = [c.error,v.error,a.error,d.error,l.error,m.error].filter(Boolean);
+    if(errors.length) console.error('loadAll error:', errors);
+
     setCustomers(c.data || []);
     setVehicles(v.data || []);
     setAuctions(a.data || []);
     setDeals(d.data || []);
     setLogs(l.data || []);
-    setModels((m.data || []).map((x:any)=>({ brand:x.brand, brand_en:'', model:'', model_en:'', category:'브랜드' })));
+    setBrands(m.data || []);
     setLoading(false);
   }
 
   useEffect(()=>{
     loadAll();
-    const ch = supabase.channel('crm-pro-v40')
+    const ch = supabase.channel('crm-pro-v41')
       .on('postgres_changes',{event:'*',schema:'public',table:'customers'},loadAll)
       .on('postgres_changes',{event:'*',schema:'public',table:'vehicle_search'},loadAll)
       .on('postgres_changes',{event:'*',schema:'public',table:'auctions'},loadAll)
@@ -68,31 +71,6 @@ export default function Home(){
 
     return ()=>{ supabase.removeChannel(ch); };
   },[]);
-
-  const brands = useMemo(()=>{
-    return uniq(models.map(x=>x.brand).filter(Boolean)).sort((a:string,b:string)=>String(a).localeCompare(String(b)));
-  },[models]);
-
-  const modelOptions = (brand:string)=>{
-    return uniq(
-      models
-        .filter(x=>!brand || x.brand===brand)
-        .map(x=>x.model)
-        .filter(Boolean)
-    ).sort((a:string,b:string)=>String(a).localeCompare(String(b)));
-  };
-
-  const gradeOptions = (brand:string, model:string)=>{
-    return uniq(
-      models
-        .filter(x=>(!brand||x.brand===brand)&&(!model||x.model===model))
-        .map(x=>{
-          if(x.grade) return x.grade;
-          return [x.model_year, x.engine, x.drivetrain, x.trim].filter(Boolean).join(' ');
-        })
-        .filter(Boolean)
-    ).sort((a:string,b:string)=>String(a).localeCompare(String(b)));
-  };
 
   const customerName = (id:string)=>customers.find(c=>c.id===id)?.name || '';
   const customerById = (id:string)=>customers.find(c=>c.id===id);
@@ -133,7 +111,7 @@ export default function Home(){
         <Field label="위챗"><input value={form.wechat||''} onChange={e=>setForm({...form,wechat:e.target.value})}/></Field>
         <Field label="카카오"><input value={form.kakao||''} onChange={e=>setForm({...form,kakao:e.target.value})}/></Field>
         <Field label="유입경로 / 来源"><select value={form.source||''} onChange={e=>setForm({...form,source:e.target.value})}>{['抖音','直播','小红书','微信','Kakao','Naver','YouTube','介绍'].map(x=><option key={x}>{x}</option>)}</select></Field>
-        <CarSelector form={form} setForm={setForm} brands={brands} modelOptions={modelOptions} gradeOptions={gradeOptions}/>
+        <CarSelector form={form} setForm={setForm}/>
         <Field label="예산 / 预算"><input type="number" value={form.budget||''} onChange={e=>setForm({...form,budget:e.target.value})}/></Field>
         <Field label="계약확률 / 成交概率"><select value={form.probability||''} onChange={e=>setForm({...form,probability:e.target.value})}>{['95% 基本成交','80% 高概率','60% 有机会','40% 观望','20% 低概率','5% 冷客户'].map(x=><option key={x}>{x}</option>)}</select></Field>
         <Field label="상태 / 状态"><select value={form.status||''} onChange={e=>setForm({...form,status:e.target.value})}>{['신규고객','요구확인','차량검색중','추천완료','입찰대기','입찰중','계약완료','출고완료','이탈'].map(x=><option key={x}>{x}</option>)}</select></Field>
@@ -173,7 +151,7 @@ export default function Home(){
       <div className="formgrid">
         <Field label="고객 / 客户"><select value={form.customer_id||''} onChange={e=>setForm({...form,customer_id:e.target.value})}>{customers.map(c=><option key={c.id} value={c.id}>{c.name} / {c.phone}</option>)}</select></Field>
         <Field label="경매장 / 竞买场"><input value={form.auction_place||''} onChange={e=>setForm({...form,auction_place:e.target.value})}/></Field>
-        <CarSelector form={form} setForm={setForm} brands={brands} modelOptions={modelOptions} gradeOptions={gradeOptions}/>
+        <CarSelector form={form} setForm={setForm} syncYear/>
         <Field label="연식"><input type="number" value={form.year||''} onChange={e=>setForm({...form,year:e.target.value})}/></Field>
         <Field label="주행거리"><input type="number" value={form.mileage||''} onChange={e=>setForm({...form,mileage:e.target.value})}/></Field>
         <Field label="색상"><input value={form.color||''} onChange={e=>setForm({...form,color:e.target.value})}/></Field>
@@ -313,12 +291,8 @@ export default function Home(){
 
     if(page==='models') return <div>
       <h2>차량 DB <span className="muted">车型数据库</span></h2>
-      <div className="small">현재 브랜드 데이터: {brands.length}개 / 차량DB는 선택 시 실시간 조회</div>
-      <DataTable headers={['브랜드','Brand','세부모델','Model EN','연식/등급','차급']} rows={models.map(m=>[
-        m.brand,m.brand_en,m.model,m.model_en,
-        m.grade || [m.model_year, m.engine, m.drivetrain, m.trim].filter(Boolean).join(' '),
-        m.category
-      ])}/>
+      <div className="small">등록 브랜드: {brands.length}개 / 브랜드·모델·연식 선택 시 실시간 조회</div>
+      <DataTable headers={['브랜드']} rows={brands.map((b:any)=>[b.brand])}/>
     </div>;
 
     return null;
@@ -328,7 +302,7 @@ export default function Home(){
     <header>
       <div>
         <h1>덕킹 중고차 대행경매 CRM Professional V4.1</h1>
-        <div className="small">한국어 중심 · 中文辅助 · V4.1 온디맨드 차량DB 연동 · 개인/소규모 팀용</div>
+        <div className="small">한국어 중심 · 中文辅助 · 브랜드→모델→연식→등급 실시간 연동</div>
       </div>
       <button className="btn secondary" onClick={loadAll}>새로고침</button>
     </header>
