@@ -1,315 +1,67 @@
 'use client';
-
-import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { today, money, totalProfit } from '@/lib/utils';
-import Badge from '@/components/Badge';
-import Field from '@/components/Field';
-import Modal from '@/components/Modal';
-import DataTable from '@/components/DataTable';
-import Sidebar from '@/components/Sidebar';
-import CarSelector from '@/components/CarSelector';
-
-type Row = Record<string, any>;
-
-const PAGES = [
-  ['dashboard','📊 대시보드','工作台'],
-  ['customers','👥 고객관리','客户管理'],
-  ['follow','📞 팔로업','跟进日志'],
-  ['vehicles','🔍 차량찾기','找车中心'],
-  ['auctions','🔨 경매관리','竞拍管理'],
-  ['deals','💰 수익관리','利润管理'],
-  ['models','🚗 차량DB','车型库'],
-];
-
+import {useEffect,useMemo,useState} from 'react';
+import {supabase} from '@/lib/supabase';
+type R=Record<string,any>;
+const today=()=>new Date().toISOString().slice(0,10);
+const money=(v:any)=>Number(v||0).toLocaleString();
+const pages=[['dash','📊','工作台'],['customers','👥','客户管理'],['cars','🔍','找车竞拍'],['deals','💰','成交利润'],['quote','🧾','报价单']];
+const statusList=['新客户','已联系','找车中','已推荐','待竞拍','已成交','暂停','无效'];
+const sourceList=['抖音','小红书','直播','微信','Kakao','朋友介绍','其他'];
+const resultList=['待确认','准备竞拍','未中标','已中标','放弃'];
+function F({label,children}:{label:string,children:any}){return <div className="field"><label>{label}</label>{children}</div>}
+function Table({h,rows}:{h:string[],rows:any[][]}){return <div className="tablewrap"><table className="table"><thead><tr>{h.map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((x,j)=><td key={j}>{x}</td>)}</tr>)}</tbody></table></div>}
 export default function Home(){
-  const [page,setPage] = useState('dashboard');
-  const [loading,setLoading] = useState(true);
-  const [search,setSearch] = useState('');
-  const [modal,setModal] = useState<any>(null);
-
-  const [customers,setCustomers] = useState<Row[]>([]);
-  const [vehicles,setVehicles] = useState<Row[]>([]);
-  const [auctions,setAuctions] = useState<Row[]>([]);
-  const [deals,setDeals] = useState<Row[]>([]);
-  const [logs,setLogs] = useState<Row[]>([]);
-  const [brands,setBrands] = useState<Row[]>([]);
-
-  async function loadAll(){
-    setLoading(true);
-
-    const [c,v,a,d,l,m] = await Promise.all([
-      supabase.from('customers').select('*').order('created_at',{ascending:false}),
-      supabase.from('vehicle_search').select('*').order('created_at',{ascending:false}),
-      supabase.from('auctions').select('*').order('created_at',{ascending:false}),
-      supabase.from('deals').select('*').order('created_at',{ascending:false}),
-      supabase.from('follow_logs').select('*').order('created_at',{ascending:false}),
-      supabase.rpc('get_car_brands')
-    ]);
-
-    const errors = [c.error,v.error,a.error,d.error,l.error,m.error].filter(Boolean);
-    if(errors.length) console.error('loadAll error:', errors);
-
-    setCustomers(c.data || []);
-    setVehicles(v.data || []);
-    setAuctions(a.data || []);
-    setDeals(d.data || []);
-    setLogs(l.data || []);
-    setBrands(m.data || []);
-    setLoading(false);
-  }
-
-  useEffect(()=>{
-    loadAll();
-    const ch = supabase.channel('crm-pro-v41')
-      .on('postgres_changes',{event:'*',schema:'public',table:'customers'},loadAll)
-      .on('postgres_changes',{event:'*',schema:'public',table:'vehicle_search'},loadAll)
-      .on('postgres_changes',{event:'*',schema:'public',table:'auctions'},loadAll)
-      .on('postgres_changes',{event:'*',schema:'public',table:'deals'},loadAll)
-      .on('postgres_changes',{event:'*',schema:'public',table:'follow_logs'},loadAll)
-      .subscribe();
-
-    return ()=>{ supabase.removeChannel(ch); };
-  },[]);
-
-  const customerName = (id:string)=>customers.find(c=>c.id===id)?.name || '';
-  const customerById = (id:string)=>customers.find(c=>c.id===id);
-  const match = (obj:any)=>!search || JSON.stringify(obj).toLowerCase().includes(search.toLowerCase());
-
-  const month = today().slice(0,7);
-  const dueCustomers = customers.filter(c=>c.next_contact && c.next_contact <= today() && !['계약완료','已成交','이탈','已流失'].includes(c.status));
-  const todayAuctions = vehicles.filter(v=>v.auction_date === today());
-  const monthDeals = deals.filter(d=>(d.deal_date||'').slice(0,7)===month);
-
-  function CustomerForm({item}:any){
-    const [form,setForm] = useState(item || {
-      customer_no:'', name:'', phone:'', wechat:'', kakao:'', source:'抖音',
-      brand:'', model:'', grade:'', budget:'', status:'신규고객',
-      probability:'60% 有机会', last_contact:today(), next_contact:today(), memo:''
-    });
-
-    async function save(){
-      const obj = {...form, budget: form.budget ? Number(form.budget) : null};
-      if(item?.id) await supabase.from('customers').update(obj).eq('id',item.id);
-      else await supabase.from('customers').insert(obj);
-      setModal(null);
-      await loadAll();
-    }
-
-    async function del(){
-      if(!item?.id || !confirm('삭제할까요?')) return;
-      await supabase.from('customers').delete().eq('id',item.id);
-      setModal(null);
-      await loadAll();
-    }
-
-    return <div>
-      <div className="formgrid">
-        <Field label="고객번호 / 客户编号"><input value={form.customer_no||''} onChange={e=>setForm({...form,customer_no:e.target.value})}/></Field>
-        <Field label="고객명 / 姓名"><input value={form.name||''} onChange={e=>setForm({...form,name:e.target.value})}/></Field>
-        <Field label="전화 / 电话"><input value={form.phone||''} onChange={e=>setForm({...form,phone:e.target.value})}/></Field>
-        <Field label="위챗"><input value={form.wechat||''} onChange={e=>setForm({...form,wechat:e.target.value})}/></Field>
-        <Field label="카카오"><input value={form.kakao||''} onChange={e=>setForm({...form,kakao:e.target.value})}/></Field>
-        <Field label="유입경로 / 来源"><select value={form.source||''} onChange={e=>setForm({...form,source:e.target.value})}>{['抖音','直播','小红书','微信','Kakao','Naver','YouTube','介绍'].map(x=><option key={x}>{x}</option>)}</select></Field>
-        <CarSelector form={form} setForm={setForm}/>
-        <Field label="예산 / 预算"><input type="number" value={form.budget||''} onChange={e=>setForm({...form,budget:e.target.value})}/></Field>
-        <Field label="계약확률 / 成交概率"><select value={form.probability||''} onChange={e=>setForm({...form,probability:e.target.value})}>{['95% 基本成交','80% 高概率','60% 有机会','40% 观望','20% 低概率','5% 冷客户'].map(x=><option key={x}>{x}</option>)}</select></Field>
-        <Field label="상태 / 状态"><select value={form.status||''} onChange={e=>setForm({...form,status:e.target.value})}>{['신규고객','요구확인','차량검색중','추천완료','입찰대기','입찰중','계약완료','출고완료','이탈'].map(x=><option key={x}>{x}</option>)}</select></Field>
-        <Field label="마지막 연락"><input type="date" value={form.last_contact||''} onChange={e=>setForm({...form,last_contact:e.target.value})}/></Field>
-        <Field label="다음 연락"><input type="date" value={form.next_contact||''} onChange={e=>setForm({...form,next_contact:e.target.value})}/></Field>
-        <Field label="메모 / 备注"><textarea value={form.memo||''} onChange={e=>setForm({...form,memo:e.target.value})}/></Field>
-      </div>
-      <div className="toolbar" style={{marginTop:14}}>
-        <button className="btn green" onClick={save}>저장</button>
-        {item?.id && <button className="btn danger" onClick={del}>삭제</button>}
-      </div>
-    </div>;
-  }
-
-  function VehicleForm({item}:any){
-    const [form,setForm] = useState(item || {
-      customer_id:customers[0]?.id||'', auction_place:'Glovis', brand:'', model:'', grade:'',
-      auction_date:today(), condition:'无事故'
-    });
-
-    async function save(){
-      const obj = {
-        ...form,
-        year: form.year ? Number(form.year) : null,
-        mileage: form.mileage ? Number(form.mileage) : null,
-        start_price: form.start_price ? Number(form.start_price) : null,
-        expected_price: form.expected_price ? Number(form.expected_price) : null,
-        market_price: form.market_price ? Number(form.market_price) : null
-      };
-      if(item?.id) await supabase.from('vehicle_search').update(obj).eq('id',item.id);
-      else await supabase.from('vehicle_search').insert(obj);
-      setModal(null);
-      await loadAll();
-    }
-
-    return <div>
-      <div className="formgrid">
-        <Field label="고객 / 客户"><select value={form.customer_id||''} onChange={e=>setForm({...form,customer_id:e.target.value})}>{customers.map(c=><option key={c.id} value={c.id}>{c.name} / {c.phone}</option>)}</select></Field>
-        <Field label="경매장 / 竞买场"><input value={form.auction_place||''} onChange={e=>setForm({...form,auction_place:e.target.value})}/></Field>
-        <CarSelector form={form} setForm={setForm} syncYear/>
-        <Field label="연식"><input type="number" value={form.year||''} onChange={e=>setForm({...form,year:e.target.value})}/></Field>
-        <Field label="주행거리"><input type="number" value={form.mileage||''} onChange={e=>setForm({...form,mileage:e.target.value})}/></Field>
-        <Field label="색상"><input value={form.color||''} onChange={e=>setForm({...form,color:e.target.value})}/></Field>
-        <Field label="차량상태"><select value={form.condition||''} onChange={e=>setForm({...form,condition:e.target.value})}>{['无事故','单纯交换','有事故','需要检测','不确定'].map(x=><option key={x}>{x}</option>)}</select></Field>
-        <Field label="시작가"><input type="number" value={form.start_price||''} onChange={e=>setForm({...form,start_price:e.target.value})}/></Field>
-        <Field label="예상낙찰가"><input type="number" value={form.expected_price||''} onChange={e=>setForm({...form,expected_price:e.target.value})}/></Field>
-        <Field label="시세"><input type="number" value={form.market_price||''} onChange={e=>setForm({...form,market_price:e.target.value})}/></Field>
-        <Field label="입찰일"><input type="date" value={form.auction_date||''} onChange={e=>setForm({...form,auction_date:e.target.value})}/></Field>
-        <Field label="반응"><select value={form.feedback||''} onChange={e=>setForm({...form,feedback:e.target.value})}>{['喜欢','考虑','太贵','已确认','不要'].map(x=><option key={x}>{x}</option>)}</select></Field>
-        <Field label="메모"><textarea value={form.memo||''} onChange={e=>setForm({...form,memo:e.target.value})}/></Field>
-      </div>
-      <div className="toolbar" style={{marginTop:14}}><button className="btn green" onClick={save}>저장</button></div>
-    </div>;
-  }
-
-  function SimpleInsertForm({type}:any){
-    const [form,setForm] = useState<any>({
-      customer_id:customers[0]?.id||'', auction_date:today(), deal_date:today(),
-      contact_date:today(), next_contact:today(), auction_place:'Glovis', result:'待竞拍', method:'微信'
-    });
-
-    async function save(){
-      if(type==='auction') await supabase.from('auctions').insert({
-        customer_id:form.customer_id, auction_date:form.auction_date, auction_place:form.auction_place,
-        max_bid:Number(form.max_bid||0), final_price:Number(form.final_price||0), result:form.result, memo:form.memo
-      });
-
-      if(type==='deal'){
-        const c=customerById(form.customer_id);
-        await supabase.from('deals').insert({
-          customer_id:form.customer_id, deal_date:form.deal_date, brand:c?.brand, model:c?.model, grade:c?.grade,
-          deal_price:Number(form.deal_price||0), broker_fee:Number(form.broker_fee||0), loan_fee:Number(form.loan_fee||0),
-          insurance_fee:Number(form.insurance_fee||0), extra_profit:Number(form.extra_profit||0), car_profit:Number(form.car_profit||0),
-          delivery_date:form.delivery_date, memo:form.memo
-        });
-      }
-
-      if(type==='log'){
-        await supabase.from('follow_logs').insert({
-          customer_id:form.customer_id, contact_date:form.contact_date, method:form.method,
-          content:form.content, next_contact:form.next_contact, memo:form.memo
-        });
-        await supabase.from('customers').update({last_contact:form.contact_date,next_contact:form.next_contact}).eq('id',form.customer_id);
-      }
-
-      setModal(null);
-      await loadAll();
-    }
-
-    return <div className="formgrid">
-      <Field label="고객"><select value={form.customer_id} onChange={e=>setForm({...form,customer_id:e.target.value})}>{customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
-      {type==='auction' && <>
-        <Field label="입찰일"><input type="date" value={form.auction_date} onChange={e=>setForm({...form,auction_date:e.target.value})}/></Field>
-        <Field label="경매장"><input value={form.auction_place} onChange={e=>setForm({...form,auction_place:e.target.value})}/></Field>
-        <Field label="최고가"><input type="number" onChange={e=>setForm({...form,max_bid:e.target.value})}/></Field>
-        <Field label="낙찰가"><input type="number" onChange={e=>setForm({...form,final_price:e.target.value})}/></Field>
-        <Field label="결과"><select value={form.result} onChange={e=>setForm({...form,result:e.target.value})}>{['待竞拍','中标','未中标','客户放弃'].map(x=><option key={x}>{x}</option>)}</select></Field>
-      </>}
-      {type==='deal' && <>
-        <Field label="계약일"><input type="date" value={form.deal_date} onChange={e=>setForm({...form,deal_date:e.target.value})}/></Field>
-        <Field label="계약가"><input type="number" onChange={e=>setForm({...form,deal_price:e.target.value})}/></Field>
-        <Field label="대행료"><input type="number" onChange={e=>setForm({...form,broker_fee:e.target.value})}/></Field>
-        <Field label="할부"><input type="number" onChange={e=>setForm({...form,loan_fee:e.target.value})}/></Field>
-        <Field label="보험"><input type="number" onChange={e=>setForm({...form,insurance_fee:e.target.value})}/></Field>
-        <Field label="기타"><input type="number" onChange={e=>setForm({...form,extra_profit:e.target.value})}/></Field>
-        <Field label="차량마진"><input type="number" onChange={e=>setForm({...form,car_profit:e.target.value})}/></Field>
-        <Field label="출고일"><input type="date" onChange={e=>setForm({...form,delivery_date:e.target.value})}/></Field>
-      </>}
-      {type==='log' && <>
-        <Field label="연락일"><input type="date" value={form.contact_date} onChange={e=>setForm({...form,contact_date:e.target.value})}/></Field>
-        <Field label="방식"><select value={form.method} onChange={e=>setForm({...form,method:e.target.value})}>{['微信','Kakao','电话','短信','面谈'].map(x=><option key={x}>{x}</option>)}</select></Field>
-        <Field label="다음 연락"><input type="date" value={form.next_contact} onChange={e=>setForm({...form,next_contact:e.target.value})}/></Field>
-        <Field label="내용"><textarea onChange={e=>setForm({...form,content:e.target.value})}/></Field>
-      </>}
-      <Field label="메모"><textarea onChange={e=>setForm({...form,memo:e.target.value})}/></Field>
-      <div><button className="btn green" onClick={save}>저장</button></div>
-    </div>;
-  }
-
-  function renderDashboard(){
-    return <>
-      <div className="grid">
-        <div className="kpi"><div className="label">오늘 연락 / 今日待联系</div><div className="value">{dueCustomers.length}</div></div>
-        <div className="kpi"><div className="label">오늘 입찰 / 今日竞拍</div><div className="value">{todayAuctions.length}</div></div>
-        <div className="kpi"><div className="label">월계약 / 本月成交</div><div className="value">{monthDeals.length}</div></div>
-        <div className="kpi"><div className="label">월수익 / 本月利润</div><div className="value">{money(monthDeals.reduce((s,d)=>s+totalProfit(d),0))}</div></div>
-      </div>
-      <div className="card">
-        <h2>오늘 우선 연락 고객 <span className="muted">今日优先联系</span></h2>
-        <DataTable headers={['고객명','연락처','차량','상태','다음연락','메모']} rows={dueCustomers.map(c=>[c.name,c.phone,`${c.brand||''} ${c.model||''}`,<Badge key={c.id} value={c.status}/>,c.next_contact,c.memo])}/>
-      </div>
-      <div className="card">
-        <h2>오늘 입찰 차량 <span className="muted">今日竞拍车辆</span></h2>
-        <DataTable headers={['고객','경매장','차량','예상가','입찰일','반응']} rows={todayAuctions.map(v=>[customerName(v.customer_id),v.auction_place,`${v.brand||''} ${v.model||''}`,money(v.expected_price),v.auction_date,v.feedback])}/>
-      </div>
-    </>;
-  }
-
-  function body(){
-    if(!process.env.NEXT_PUBLIC_SUPABASE_URL) return <div className="notice">Vercel 환경변수 NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 를 먼저 설정하세요.</div>;
-    if(loading) return <div className="card">로딩중...</div>;
-
-    if(page==='dashboard') return renderDashboard();
-
-    if(page==='customers') return <div>
-      <h2>고객관리 <span className="muted">客户管理</span></h2>
-      <div className="toolbar">
-        <input placeholder="검색" value={search} onChange={e=>setSearch(e.target.value)}/>
-        <button className="btn" onClick={()=>setModal({title:'신규 고객', body:<CustomerForm/>})}>신규 고객</button>
-      </div>
-      <DataTable headers={['번호','이름','전화','소스','차량','예산','확률','상태','다음연락','관리']} rows={customers.filter(match).map(c=>[c.customer_no,c.name,c.phone,c.source,`${c.brand||''} ${c.model||''} ${c.grade||''}`,money(c.budget),c.probability,<Badge key={c.id} value={c.status}/>,c.next_contact,<button key={c.id} className="btn secondary" onClick={()=>setModal({title:'고객 수정', body:<CustomerForm item={c}/>})}>수정</button>])}/>
-    </div>;
-
-    if(page==='follow') return <div>
-      <h2>팔로업 로그 <span className="muted">跟进日志</span></h2>
-      <div className="toolbar"><button className="btn" onClick={()=>setModal({title:'팔로업 추가', body:<SimpleInsertForm type="log"/>})}>팔로업 추가</button></div>
-      <DataTable headers={['고객','연락일','방식','내용','다음연락']} rows={logs.map(l=>[customerName(l.customer_id),l.contact_date,l.method,l.content,l.next_contact])}/>
-    </div>;
-
-    if(page==='vehicles') return <div>
-      <h2>차량찾기 <span className="muted">找车中心</span></h2>
-      <div className="toolbar"><button className="btn" onClick={()=>setModal({title:'차량 추가', body:<VehicleForm/>})}>차량 추가</button></div>
-      <DataTable headers={['고객','경매장','차량','연식','km','예상가','입찰일','반응','관리']} rows={vehicles.map(v=>[customerName(v.customer_id),v.auction_place,`${v.brand||''} ${v.model||''} ${v.grade||''}`,v.year,money(v.mileage),money(v.expected_price),v.auction_date,v.feedback,<button key={v.id} className="btn secondary" onClick={()=>setModal({title:'차량 수정', body:<VehicleForm item={v}/>})}>수정</button>])}/>
-    </div>;
-
-    if(page==='auctions') return <div>
-      <h2>경매관리 <span className="muted">竞拍管理</span></h2>
-      <div className="toolbar"><button className="btn" onClick={()=>setModal({title:'입찰 추가', body:<SimpleInsertForm type="auction"/>})}>입찰 추가</button></div>
-      <DataTable headers={['고객','경매장','일자','최고가','낙찰가','결과','메모']} rows={auctions.map(a=>[customerName(a.customer_id),a.auction_place,a.auction_date,money(a.max_bid),money(a.final_price),<Badge key={a.id} value={a.result}/>,a.memo])}/>
-    </div>;
-
-    if(page==='deals') return <div>
-      <h2>수익관리 <span className="muted">利润管理</span></h2>
-      <div className="toolbar"><button className="btn" onClick={()=>setModal({title:'계약/수익 추가', body:<SimpleInsertForm type="deal"/>})}>계약 추가</button></div>
-      <DataTable headers={['고객','차량','계약가','대행료','총수익','출고일']} rows={deals.map(d=>[customerName(d.customer_id),`${d.brand||''} ${d.model||''}`,money(d.deal_price),money(d.broker_fee),money(totalProfit(d)),d.delivery_date])}/>
-    </div>;
-
-    if(page==='models') return <div>
-      <h2>차량 DB <span className="muted">车型数据库</span></h2>
-      <div className="small">등록 브랜드: {brands.length}개 / 브랜드·모델·연식 선택 시 실시간 조회</div>
-      <DataTable headers={['브랜드']} rows={brands.map((b:any)=>[b.brand])}/>
-    </div>;
-
-    return null;
-  }
-
-  return <div>
-    <header>
-      <div>
-        <h1>덕킹 중고차 대행경매 CRM Professional V4.1</h1>
-        <div className="small">한국어 중심 · 中文辅助 · 브랜드→모델→연식→등급 실시간 연동</div>
-      </div>
-      <button className="btn secondary" onClick={loadAll}>새로고침</button>
-    </header>
-    <div className="layout">
-      <Sidebar pages={PAGES} current={page} setPage={(p:string)=>{setSearch('');setPage(p);}}/>
-      <main>{body()}</main>
-    </div>
-    {modal && <Modal title={modal.title} onClose={()=>setModal(null)}>{modal.body}</Modal>}
-  </div>;
+ const [page,setPage]=useState('dash'),[loading,setLoading]=useState(true),[customers,setCustomers]=useState<R[]>([]),[cars,setCars]=useState<R[]>([]),[deals,setDeals]=useState<R[]>([]),[modal,setModal]=useState<any>(null),[search,setSearch]=useState('');
+ const [brands,setBrands]=useState<string[]>([]),[models,setModels]=useState<string[]>([]),[grades,setGrades]=useState<string[]>([]);
+ async function load(){setLoading(true);const[c,v,d,b]=await Promise.all([supabase.from('customers').select('*').order('created_at',{ascending:false}),supabase.from('vehicle_search').select('*').order('created_at',{ascending:false}),supabase.from('deals').select('*').order('deal_date',{ascending:false}),supabase.rpc('get_car_brands')]);setCustomers(c.data||[]);setCars(v.data||[]);setDeals(d.data||[]);setBrands((b.data||[]).map((x:any)=>x.brand));setLoading(false)}
+ useEffect(()=>{load();const ch=supabase.channel('deking-v41').on('postgres_changes',{event:'*',schema:'public',table:'customers'},load).on('postgres_changes',{event:'*',schema:'public',table:'vehicle_search'},load).on('postgres_changes',{event:'*',schema:'public',table:'deals'},load).subscribe();return()=>{supabase.removeChannel(ch)}},[]);
+ async function loadModels(brand:string){setModels([]);setGrades([]);if(!brand)return;const r=await supabase.rpc('get_car_models',{p_brand:brand});setModels((r.data||[]).map((x:any)=>x.model))}
+ async function loadGrades(brand:string,model:string){setGrades([]);if(!brand||!model)return;const r=await supabase.rpc('get_car_grades',{p_brand:brand,p_model:model});setGrades((r.data||[]).map((x:any)=>x.grade))}
+ const due=customers.filter(c=>c.next_contact&&c.next_contact<=today()&&!['已成交','无效'].includes(c.status));
+ const month=today().slice(0,7),monthDeals=deals.filter(d=>(d.deal_date||'').slice(0,7)===month),monthProfit=monthDeals.reduce((s,d)=>s+Number(d.total_profit??(Number(d.broker_fee||0)+Number(d.car_profit||0)+Number(d.loan_fee||0)+Number(d.insurance_fee||0)+Number(d.extra_profit||0)-Number(d.expense||0))),0);
+ const findName=(id:any)=>customers.find(c=>c.id===id)?.name||'';
+ function CustomerForm({item}:{item?:R}){
+  const [f,setF]=useState<R>(item||{customer_no:'',name:'',phone:'',wechat:'',source:'抖音',brand:'',model:'',grade:'',budget:'',year_request:'',mileage_request:'',color:'',loan:'待确认',probability:'B-中',status:'新客户',last_contact:today(),next_contact:today(),memo:''});
+  useEffect(()=>{if(f.brand)loadModels(f.brand);if(f.brand&&f.model)loadGrades(f.brand,f.model)},[]);
+  async function save(){if(!f.name?.trim())return alert('请输入客户姓名');const obj={...f,budget:f.budget?Number(f.budget):null,mileage_request:f.mileage_request?Number(f.mileage_request):null};const r=item?.id?await supabase.from('customers').update(obj).eq('id',item.id):await supabase.from('customers').insert(obj);if(r.error)return alert(r.error.message);setModal(null);load()}
+  async function del(){if(item?.id&&confirm('确认删除这个客户？')){const r=await supabase.from('customers').delete().eq('id',item.id);if(r.error)return alert(r.error.message);setModal(null);load()}}
+  return <><div className="grid"><F label="客户编号 / 고객번호"><input value={f.customer_no||''} onChange={e=>setF({...f,customer_no:e.target.value})}/></F><F label="姓名 / 고객명"><input value={f.name||''} onChange={e=>setF({...f,name:e.target.value})}/></F><F label="电话 / 연락처"><input value={f.phone||''} onChange={e=>setF({...f,phone:e.target.value})}/></F><F label="微信 / Kakao"><input value={f.wechat||''} onChange={e=>setF({...f,wechat:e.target.value})}/></F><F label="来源 / 유입경로"><select value={f.source||''} onChange={e=>setF({...f,source:e.target.value})}>{sourceList.map(x=><option key={x}>{x}</option>)}</select></F>
+  <F label="品牌 / 브랜드"><select value={f.brand||''} onChange={async e=>{const brand=e.target.value;setF({...f,brand,model:'',grade:''});await loadModels(brand)}}><option value="">选择品牌</option>{brands.map(x=><option key={x}>{x}</option>)}</select></F>
+  <F label="车型 / 세부모델"><select value={f.model||''} onChange={async e=>{const model=e.target.value;setF({...f,model,grade:''});await loadGrades(f.brand,model)}}><option value="">选择车型</option>{models.map(x=><option key={x}>{x}</option>)}</select></F>
+  <F label="配置 / 등급"><select value={f.grade||''} onChange={e=>setF({...f,grade:e.target.value})}><option value="">选择配置</option>{grades.map(x=><option key={x}>{x}</option>)}</select></F>
+  <F label="预算（万韩元）"><input type="number" value={f.budget||''} onChange={e=>setF({...f,budget:e.target.value})}/></F><F label="年份要求"><input value={f.year_request||''} onChange={e=>setF({...f,year_request:e.target.value})}/></F><F label="公里数要求"><input type="number" value={f.mileage_request||''} onChange={e=>setF({...f,mileage_request:e.target.value})}/></F><F label="颜色"><input value={f.color||''} onChange={e=>setF({...f,color:e.target.value})}/></F><F label="贷款"><select value={f.loan||''} onChange={e=>setF({...f,loan:e.target.value})}>{['是','否','待确认'].map(x=><option key={x}>{x}</option>)}</select></F><F label="意向等级"><select value={f.probability||''} onChange={e=>setF({...f,probability:e.target.value})}>{['A-高','B-中','C-低'].map(x=><option key={x}>{x}</option>)}</select></F><F label="状态"><select value={f.status||''} onChange={e=>setF({...f,status:e.target.value})}>{statusList.map(x=><option key={x}>{x}</option>)}</select></F><F label="最后联系"><input type="date" value={f.last_contact||''} onChange={e=>setF({...f,last_contact:e.target.value})}/></F><F label="下次联系"><input type="date" value={f.next_contact||''} onChange={e=>setF({...f,next_contact:e.target.value})}/></F><F label="备注"><textarea value={f.memo||''} onChange={e=>setF({...f,memo:e.target.value})}/></F></div><div className="toolbar" style={{marginTop:14}}><button className="btn" onClick={save}>保存 / 저장</button>{item?.id&&<button className="btn red" onClick={del}>删除</button>}</div></>
+ }
+ function CarForm({item}:{item?:R}){
+  const [f,setF]=useState<R>(item||{customer_id:customers[0]?.id||'',record_date:today(),auction_place:'Glovis',brand:'',model:'',grade:'',year:'',mileage:'',color:'',vehicle_ref:'',market_price:'',expected_price:'',customer_max_price:'',auction_date:today(),result:'待确认',final_price:'',feedback:'',memo:''});
+  useEffect(()=>{if(f.brand)loadModels(f.brand);if(f.brand&&f.model)loadGrades(f.brand,f.model)},[]);
+  async function save(){if(!f.customer_id)return alert('请选择客户');const nums=['year','mileage','market_price','expected_price','customer_max_price','final_price'];let o={...f};nums.forEach(k=>o[k]=o[k]?Number(o[k]):null);const r=item?.id?await supabase.from('vehicle_search').update(o).eq('id',item.id):await supabase.from('vehicle_search').insert(o);if(r.error)return alert(r.error.message);setModal(null);load()}
+  async function del(){if(item?.id&&confirm('确认删除这条找车记录？')){const r=await supabase.from('vehicle_search').delete().eq('id',item.id);if(r.error)return alert(r.error.message);setModal(null);load()}}
+  return <><div className="grid"><F label="客户"><select value={f.customer_id||''} onChange={e=>setF({...f,customer_id:e.target.value})}>{customers.map(c=><option key={c.id} value={c.id}>{c.name} / {c.phone}</option>)}</select></F><F label="日期"><input type="date" value={f.record_date||''} onChange={e=>setF({...f,record_date:e.target.value})}/></F><F label="竞买场"><input value={f.auction_place||''} onChange={e=>setF({...f,auction_place:e.target.value})}/></F>
+  <F label="品牌"><select value={f.brand||''} onChange={async e=>{const brand=e.target.value;setF({...f,brand,model:'',grade:''});await loadModels(brand)}}><option value="">选择品牌</option>{brands.map(x=><option key={x}>{x}</option>)}</select></F><F label="车型"><select value={f.model||''} onChange={async e=>{const model=e.target.value;setF({...f,model,grade:''});await loadGrades(f.brand,model)}}><option value="">选择车型</option>{models.map(x=><option key={x}>{x}</option>)}</select></F><F label="配置"><select value={f.grade||''} onChange={e=>setF({...f,grade:e.target.value})}><option value="">选择配置</option>{grades.map(x=><option key={x}>{x}</option>)}</select></F>
+  <F label="年份"><input type="number" value={f.year||''} onChange={e=>setF({...f,year:e.target.value})}/></F><F label="公里数"><input type="number" value={f.mileage||''} onChange={e=>setF({...f,mileage:e.target.value})}/></F><F label="颜色"><input value={f.color||''} onChange={e=>setF({...f,color:e.target.value})}/></F><F label="车辆链接/编号"><input value={f.vehicle_ref||''} onChange={e=>setF({...f,vehicle_ref:e.target.value})}/></F><F label="预计市场价（万）"><input type="number" value={f.market_price||''} onChange={e=>setF({...f,market_price:e.target.value})}/></F><F label="建议最高价（万）"><input type="number" value={f.expected_price||''} onChange={e=>setF({...f,expected_price:e.target.value})}/></F><F label="客户最高价（万）"><input type="number" value={f.customer_max_price||''} onChange={e=>setF({...f,customer_max_price:e.target.value})}/></F><F label="竞拍日期"><input type="date" value={f.auction_date||''} onChange={e=>setF({...f,auction_date:e.target.value})}/></F><F label="结果"><select value={f.result||''} onChange={e=>setF({...f,result:e.target.value})}>{resultList.map(x=><option key={x}>{x}</option>)}</select></F><F label="成交价（万）"><input type="number" value={f.final_price||''} onChange={e=>setF({...f,final_price:e.target.value})}/></F><F label="客户反馈/下一步"><input value={f.feedback||''} onChange={e=>setF({...f,feedback:e.target.value})}/></F><F label="备注"><textarea value={f.memo||''} onChange={e=>setF({...f,memo:e.target.value})}/></F></div><div className="toolbar" style={{marginTop:14}}><button className="btn" onClick={save}>保存</button>{item?.id&&<button className="btn red" onClick={del}>删除</button>}</div></>
+ }
+ function DealForm({item}:{item?:R}){
+  const [f,setF]=useState<R>(item||{customer_id:customers[0]?.id||'',deal_date:today(),model:'',year:'',deal_price:'',broker_fee:'',car_profit:'',loan_fee:'',insurance_fee:'',extra_profit:'',expense:'',delivery_date:'',after_sales_reminder:'',memo:''});
+  const total=Number(f.broker_fee||0)+Number(f.car_profit||0)+Number(f.loan_fee||0)+Number(f.insurance_fee||0)+Number(f.extra_profit||0)-Number(f.expense||0);
+  async function save(){if(!f.customer_id)return alert('请选择客户');let o={...f,total_profit:total};['year','deal_price','broker_fee','car_profit','loan_fee','insurance_fee','extra_profit','expense'].forEach(k=>o[k]=o[k]?Number(o[k]):0);const r=item?.id?await supabase.from('deals').update(o).eq('id',item.id):await supabase.from('deals').insert(o);if(r.error)return alert(r.error.message);await supabase.from('customers').update({status:'已成交'}).eq('id',f.customer_id);setModal(null);load()}
+  async function del(){if(item?.id&&confirm('确认删除成交记录？')){const r=await supabase.from('deals').delete().eq('id',item.id);if(r.error)return alert(r.error.message);setModal(null);load()}}
+  return <><div className="grid"><F label="客户"><select value={f.customer_id||''} onChange={e=>setF({...f,customer_id:e.target.value})}>{customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></F><F label="成交日期"><input type="date" value={f.deal_date||''} onChange={e=>setF({...f,deal_date:e.target.value})}/></F><F label="车型"><input value={f.model||''} onChange={e=>setF({...f,model:e.target.value})}/></F><F label="年份"><input type="number" value={f.year||''} onChange={e=>setF({...f,year:e.target.value})}/></F><F label="成交价（万）"><input type="number" value={f.deal_price||''} onChange={e=>setF({...f,deal_price:e.target.value})}/></F><F label="代拍服务费"><input type="number" value={f.broker_fee||''} onChange={e=>setF({...f,broker_fee:e.target.value})}/></F><F label="车辆利润"><input type="number" value={f.car_profit||''} onChange={e=>setF({...f,car_profit:e.target.value})}/></F><F label="贷款返点"><input type="number" value={f.loan_fee||''} onChange={e=>setF({...f,loan_fee:e.target.value})}/></F><F label="保险返点"><input type="number" value={f.insurance_fee||''} onChange={e=>setF({...f,insurance_fee:e.target.value})}/></F><F label="其他收入"><input type="number" value={f.extra_profit||''} onChange={e=>setF({...f,extra_profit:e.target.value})}/></F><F label="支出/优惠"><input type="number" value={f.expense||''} onChange={e=>setF({...f,expense:e.target.value})}/></F><F label="总利润"><input value={total} readOnly/></F><F label="交车日期"><input type="date" value={f.delivery_date||''} onChange={e=>setF({...f,delivery_date:e.target.value})}/></F><F label="售后提醒"><input value={f.after_sales_reminder||''} onChange={e=>setF({...f,after_sales_reminder:e.target.value})}/></F><F label="备注"><textarea value={f.memo||''} onChange={e=>setF({...f,memo:e.target.value})}/></F></div><div className="toolbar" style={{marginTop:14}}><button className="btn" onClick={save}>保存</button>{item?.id&&<button className="btn red" onClick={del}>删除</button>}</div></>
+ }
+ function Quote(){
+  const [f,setF]=useState<R>({customer_id:'',name:'',phone:'',model:'',year:'',mileage:'',color:'',expected:'',fee:'',auction_place:'Glovis',valid_until:'',memo:''});
+  function pick(id:string){const c=customers.find(x=>x.id===id);setF({...f,customer_id:id,name:c?.name||'',phone:c?.phone||'',model:[c?.brand,c?.model,c?.grade].filter(Boolean).join(' ')})}
+  const total=Number(f.expected||0)+Number(f.fee||0);
+  const fields=[['客户姓名','고객명',f.name],['电话','연락처',f.phone],['车型','차종',f.model],['年份','연식',f.year],['公里数','주행거리',f.mileage],['颜色','색상',f.color],['预计成交价(万韩元)','예상 낙찰가(만원)',money(f.expected)],['代拍服务费(万韩元)','대행 수수료(만원)',money(f.fee)],['预计总价(万韩元)','예상 총액(만원)',money(total)],['竞买场','경매장',f.auction_place],['有效期','유효기간',f.valid_until],['备注','메모',f.memo]];
+  return <><div className="card no-print"><h2>报价内容 <span className="muted">견적 입력</span></h2><div className="grid"><F label="选择客户"><select value={f.customer_id} onChange={e=>pick(e.target.value)}><option value="">请选择</option>{customers.map(c=><option key={c.id} value={c.id}>{c.name} / {c.phone}</option>)}</select></F>{[['name','客户姓名'],['phone','电话'],['model','车型'],['year','年份'],['mileage','公里数'],['color','颜色'],['expected','预计成交价（万）'],['fee','代拍服务费（万）'],['auction_place','竞买场'],['valid_until','有效期'],['memo','备注']].map(([k,l])=><F key={k} label={l}><input type={['expected','fee'].includes(k)?'number':k==='valid_until'?'date':'text'} value={f[k]||''} onChange={e=>setF({...f,[k]:e.target.value})}/></F>)}</div><div className="toolbar" style={{marginTop:14}}><button className="btn" onClick={()=>window.print()}>打印 / 保存 PDF</button></div></div><div className="card quote"><h2>德King 韩国二手车代拍报价单 / 견적서</h2><table><tbody><tr><td>中文项目</td><td>한국어</td><td>填写内容</td></tr>{fields.map(x=><tr key={x[0]}><td>{x[0]}</td><td>{x[1]}</td><td>{x[2]}</td></tr>)}</tbody></table><p className="muted">本报价为代拍参考价，最终金额以实际成交价、车辆检查及实际费用为准。<br/>본 견적은 입찰 대행 참고 견적이며 최종 금액은 실제 낙찰가, 차량 확인 및 실비 기준으로 확정됩니다.</p></div></>
+ }
+ function content(){
+  if(!process.env.NEXT_PUBLIC_SUPABASE_URL)return <div className="notice">请先在 Vercel 设置 NEXT_PUBLIC_SUPABASE_URL 和 NEXT_PUBLIC_SUPABASE_ANON_KEY。</div>;
+  if(loading)return <div className="card">正在读取数据...</div>;
+  if(page==='dash')return <><div className="kpis"><div className="kpi"><span>今日待联系</span><b>{due.length}</b></div><div className="kpi"><span>找车中</span><b>{customers.filter(c=>c.status==='找车中').length}</b></div><div className="kpi"><span>今日竞拍</span><b>{cars.filter(v=>v.auction_date===today()).length}</b></div><div className="kpi"><span>本月成交</span><b>{monthDeals.length}</b></div><div className="kpi"><span>本月利润（万）</span><b>{money(monthProfit)}</b></div></div><div className="card"><h2>今日优先联系客户 / 오늘 우선 연락</h2><Table h={['姓名','电话','需求车型','预算','状态','下次联系','备注','管理']} rows={due.map(c=>[c.name,c.phone,[c.brand,c.model].filter(Boolean).join(' '),money(c.budget),c.status,<span className="due">{c.next_contact}</span>,c.memo,<button className="btn gray" onClick={()=>setModal({title:'修改客户',body:<CustomerForm item={c}/>})}>修改</button>])}/></div><div className="card"><h2>使用方法</h2><p>每天只看这里：先联系到期客户，再处理竞拍，成交后记利润。金额统一：万韩元 / 만원。</p></div></>;
+  if(page==='customers'){const q=search.toLowerCase(),list=customers.filter(c=>!q||JSON.stringify(c).toLowerCase().includes(q));return <div className="card"><h2>客户管理 / 고객관리</h2><div className="toolbar"><input className="search" placeholder="姓名、电话、车型搜索" value={search} onChange={e=>setSearch(e.target.value)}/><button className="btn" onClick={()=>setModal({title:'新客户',body:<CustomerForm/>})}>+ 新客户</button></div><Table h={['编号','姓名','电话','来源','需求车型','预算','意向','状态','下次联系','管理']} rows={list.map(c=>[c.customer_no,c.name,c.phone,c.source,[c.brand,c.model,c.grade].filter(Boolean).join(' '),money(c.budget),c.probability,c.status,c.next_contact,<button className="btn gray" onClick={()=>setModal({title:'修改客户',body:<CustomerForm item={c}/>})}>修改</button>])}/></div>}
+  if(page==='cars')return <div className="card"><h2>找车 + 竞拍 / 차량검색·입찰</h2><div className="toolbar"><button className="btn" onClick={()=>setModal({title:'新增找车竞拍',body:<CarForm/>})}>+ 新增记录</button></div><Table h={['客户','日期','竞买场','车型/配置','年份','公里数','市场价','建议最高价','客户最高价','竞拍日','结果','成交价','下一步','管理']} rows={cars.map(v=>[findName(v.customer_id),v.record_date,v.auction_place,[v.brand,v.model,v.grade].filter(Boolean).join(' '),v.year,money(v.mileage),money(v.market_price),money(v.expected_price),money(v.customer_max_price),v.auction_date,v.result,money(v.final_price),v.feedback,<button className="btn gray" onClick={()=>setModal({title:'修改找车竞拍',body:<CarForm item={v}/>})}>修改</button>])}/></div>;
+  if(page==='deals')return <div className="card"><h2>成交利润 / 계약·수익</h2><div className="toolbar"><button className="btn" onClick={()=>setModal({title:'新增成交利润',body:<DealForm/>})}>+ 新增成交</button></div><Table h={['成交日','客户','车型','成交价','服务费','车辆利润','贷款','保险','其他','支出','总利润','交车日','管理']} rows={deals.map(d=>[d.deal_date,findName(d.customer_id),d.model,money(d.deal_price),money(d.broker_fee),money(d.car_profit),money(d.loan_fee),money(d.insurance_fee),money(d.extra_profit),money(d.expense),<b>{money(d.total_profit)}</b>,d.delivery_date,<button className="btn gray" onClick={()=>setModal({title:'修改成交利润',body:<DealForm item={d}/>})}>修改</button>])}/></div>;
+  return <Quote/>
+ }
+ return <><header className="top"><div><h1>덕킹 중고차 대행경매 CRM Professional V4.1</h1><p>韩国二手车个人工作系统 · 手机 / 电脑同步 · Supabase</p></div><button className="btn gray" onClick={load}>刷新</button></header><div className="shell"><nav className="nav"><div className="brand">德King CRM<br/><span className="muted">Professional V4.1</span></div>{pages.map(p=><button key={p[0]} className={page===p[0]?'active':''} onClick={()=>{setPage(p[0]);setSearch('')}}>{p[1]} {p[2]}</button>)}</nav><main className="main">{content()}</main></div><nav className="mobilebar">{pages.map(p=><button key={p[0]} className={page===p[0]?'active':''} onClick={()=>{setPage(p[0]);setSearch('')}}>{p[1]}<br/>{p[2]}</button>)}</nav>{modal&&<div className="modalbg" onClick={()=>setModal(null)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="modalhead"><h2>{modal.title}</h2><button className="btn gray" onClick={()=>setModal(null)}>✕</button></div>{modal.body}</div></div>}</>
 }

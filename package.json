@@ -1,22 +1,8 @@
 {
-  "name": "deking-car-crm-professional-v41",
-  "version": "4.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.45.4",
-    "next": "^14.2.13",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
-    "typescript": "^5.6.2",
-    "@types/node": "^22.5.5",
-    "@types/react": "^18.3.7",
-    "@types/react-dom": "^18.3.0"
-  }
+  "name":"deking-car-crm-v4-1-final",
+  "version":"4.1.0",
+  "private":true,
+  "scripts":{"dev":"next dev","build":"next build","start":"next start"},
+  "dependencies":{"@supabase/supabase-js":"^2.45.4","next":"14.2.5","react":"18.3.1","react-dom":"18.3.1"},
+  "devDependencies":{"@types/node":"^20","@types/react":"^18","@types/react-dom":"^18","typescript":"^5"}
 }
