@@ -35,3 +35,24 @@
  .top-zh{font-size:6px}
  .btitle{gap:7px}
 }
+
+.bi{display:inline-flex;align-items:baseline;gap:6px;white-space:normal}
+.bi-ko{font-size:1em;font-weight:750}
+.bi-zh{font-size:.6em;font-weight:500;color:#8290a4}
+.btn .bi{display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.05}
+.btn .bi-zh{font-size:.6em;color:inherit;opacity:.72}
+.field label .bi{display:flex;align-items:baseline}
+.table th .bi{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.table th .bi-zh{font-size:.6em}
+.kpi .bi{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.top-title{display:flex;align-items:center;gap:12px}
+.top-logo{width:54px;height:54px;object-fit:cover;border-radius:12px}
+.nav-logo{width:92px;height:92px;object-fit:cover;border-radius:18px;display:block}
+.quote-title{display:flex;align-items:center;justify-content:center;gap:12px}
+.quote-logo{width:64px;height:64px;object-fit:cover;border-radius:12px}
+.quote-zh{font-size:60%;color:#7b879a}
+@media(max-width:800px){
+ .top-logo{width:40px;height:40px;border-radius:9px}
+ .top-title{gap:8px}
+ .top-title h1{font-size:16px}
+}
