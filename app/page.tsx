@@ -10,34 +10,84 @@ const sourceList=['抖音','小红书','直播','微信','Kakao','朋友介绍',
 const resultList=['待确认','准备竞拍','未中标','已中标','放弃'];
 function F({label,children}:{label:string,children:any}){return <div className="field"><label>{label}</label>{children}</div>}
 function Table({h,rows}:{h:string[],rows:any[][]}){return <div className="tablewrap"><table className="table"><thead><tr>{h.map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((x,j)=><td key={j}>{x}</td>)}</tr>)}</tbody></table></div>}
+function VehicleSelector({form,setForm,brands}:{form:R,setForm:(v:R)=>void,brands:string[]}){
+ const [models,setModels]=useState<string[]>([]);
+ const [grades,setGrades]=useState<string[]>([]);
+ const [loadingModels,setLoadingModels]=useState(false);
+ const [loadingGrades,setLoadingGrades]=useState(false);
+
+ useEffect(()=>{
+  let active=true;
+  setModels([]);
+  setGrades([]);
+  if(!form.brand)return;
+  setLoadingModels(true);
+  supabase.rpc('get_car_models',{p_brand:form.brand}).then(({data,error})=>{
+   if(!active)return;
+   if(error){console.error('get_car_models:',error);setModels([])}
+   else setModels((data||[]).map((x:any)=>x.model).filter(Boolean));
+   setLoadingModels(false);
+  });
+  return()=>{active=false};
+ },[form.brand]);
+
+ useEffect(()=>{
+  let active=true;
+  setGrades([]);
+  if(!form.brand||!form.model)return;
+  setLoadingGrades(true);
+  supabase.rpc('get_car_grades',{p_brand:form.brand,p_model:form.model}).then(({data,error})=>{
+   if(!active)return;
+   if(error){console.error('get_car_grades:',error);setGrades([])}
+   else setGrades((data||[]).map((x:any)=>x.grade).filter(Boolean));
+   setLoadingGrades(false);
+  });
+  return()=>{active=false};
+ },[form.brand,form.model]);
+
+ return <>
+  <F label="品牌 / 브랜드">
+   <select value={form.brand||''} onChange={e=>setForm({...form,brand:e.target.value,model:'',grade:''})}>
+    <option value="">选择品牌</option>
+    {brands.map(x=><option key={x} value={x}>{x}</option>)}
+   </select>
+  </F>
+  <F label="车型 / 세부모델">
+   <select value={form.model||''} disabled={!form.brand||loadingModels} onChange={e=>setForm({...form,model:e.target.value,grade:''})}>
+    <option value="">{loadingModels?'车型加载中...':'选择车型'}</option>
+    {models.map(x=><option key={x} value={x}>{x}</option>)}
+   </select>
+  </F>
+  <F label="配置 / 등급">
+   <select value={form.grade||''} disabled={!form.model||loadingGrades} onChange={e=>setForm({...form,grade:e.target.value})}>
+    <option value="">{loadingGrades?'配置加载中...':'选择配置'}</option>
+    {grades.map(x=><option key={x} value={x}>{x}</option>)}
+   </select>
+  </F>
+ </>;
+}
 export default function Home(){
  const [page,setPage]=useState('dash'),[loading,setLoading]=useState(true),[customers,setCustomers]=useState<R[]>([]),[cars,setCars]=useState<R[]>([]),[deals,setDeals]=useState<R[]>([]),[modal,setModal]=useState<any>(null),[search,setSearch]=useState('');
- const [brands,setBrands]=useState<string[]>([]),[models,setModels]=useState<string[]>([]),[grades,setGrades]=useState<string[]>([]);
+ const [brands,setBrands]=useState<string[]>([]);
  async function load(){setLoading(true);const[c,v,d,b]=await Promise.all([supabase.from('customers').select('*').order('created_at',{ascending:false}),supabase.from('vehicle_search').select('*').order('created_at',{ascending:false}),supabase.from('deals').select('*').order('deal_date',{ascending:false}),supabase.rpc('get_car_brands')]);setCustomers(c.data||[]);setCars(v.data||[]);setDeals(d.data||[]);setBrands((b.data||[]).map((x:any)=>x.brand));setLoading(false)}
  useEffect(()=>{load();const ch=supabase.channel('deking-v41').on('postgres_changes',{event:'*',schema:'public',table:'customers'},load).on('postgres_changes',{event:'*',schema:'public',table:'vehicle_search'},load).on('postgres_changes',{event:'*',schema:'public',table:'deals'},load).subscribe();return()=>{supabase.removeChannel(ch)}},[]);
- async function loadModels(brand:string){setModels([]);setGrades([]);if(!brand)return;const r=await supabase.rpc('get_car_models',{p_brand:brand});setModels((r.data||[]).map((x:any)=>x.model))}
- async function loadGrades(brand:string,model:string){setGrades([]);if(!brand||!model)return;const r=await supabase.rpc('get_car_grades',{p_brand:brand,p_model:model});setGrades((r.data||[]).map((x:any)=>x.grade))}
  const due=customers.filter(c=>c.next_contact&&c.next_contact<=today()&&!['已成交','无效'].includes(c.status));
  const month=today().slice(0,7),monthDeals=deals.filter(d=>(d.deal_date||'').slice(0,7)===month),monthProfit=monthDeals.reduce((s,d)=>s+Number(d.total_profit??(Number(d.broker_fee||0)+Number(d.car_profit||0)+Number(d.loan_fee||0)+Number(d.insurance_fee||0)+Number(d.extra_profit||0)-Number(d.expense||0))),0);
  const findName=(id:any)=>customers.find(c=>c.id===id)?.name||'';
  function CustomerForm({item}:{item?:R}){
   const [f,setF]=useState<R>(item||{customer_no:'',name:'',phone:'',wechat:'',source:'抖音',brand:'',model:'',grade:'',budget:'',year_request:'',mileage_request:'',color:'',loan:'待确认',probability:'B-中',status:'新客户',last_contact:today(),next_contact:today(),memo:''});
-  useEffect(()=>{if(f.brand)loadModels(f.brand);if(f.brand&&f.model)loadGrades(f.brand,f.model)},[]);
   async function save(){if(!f.name?.trim())return alert('请输入客户姓名');const obj={...f,budget:f.budget?Number(f.budget):null,mileage_request:f.mileage_request?Number(f.mileage_request):null};const r=item?.id?await supabase.from('customers').update(obj).eq('id',item.id):await supabase.from('customers').insert(obj);if(r.error)return alert(r.error.message);setModal(null);load()}
   async function del(){if(item?.id&&confirm('确认删除这个客户？')){const r=await supabase.from('customers').delete().eq('id',item.id);if(r.error)return alert(r.error.message);setModal(null);load()}}
   return <><div className="grid"><F label="客户编号 / 고객번호"><input value={f.customer_no||''} onChange={e=>setF({...f,customer_no:e.target.value})}/></F><F label="姓名 / 고객명"><input value={f.name||''} onChange={e=>setF({...f,name:e.target.value})}/></F><F label="电话 / 연락처"><input value={f.phone||''} onChange={e=>setF({...f,phone:e.target.value})}/></F><F label="微信 / Kakao"><input value={f.wechat||''} onChange={e=>setF({...f,wechat:e.target.value})}/></F><F label="来源 / 유입경로"><select value={f.source||''} onChange={e=>setF({...f,source:e.target.value})}>{sourceList.map(x=><option key={x}>{x}</option>)}</select></F>
-  <F label="品牌 / 브랜드"><select value={f.brand||''} onChange={async e=>{const brand=e.target.value;setF({...f,brand,model:'',grade:''});await loadModels(brand)}}><option value="">选择品牌</option>{brands.map(x=><option key={x}>{x}</option>)}</select></F>
-  <F label="车型 / 세부모델"><select value={f.model||''} onChange={async e=>{const model=e.target.value;setF({...f,model,grade:''});await loadGrades(f.brand,model)}}><option value="">选择车型</option>{models.map(x=><option key={x}>{x}</option>)}</select></F>
-  <F label="配置 / 등급"><select value={f.grade||''} onChange={e=>setF({...f,grade:e.target.value})}><option value="">选择配置</option>{grades.map(x=><option key={x}>{x}</option>)}</select></F>
+  <VehicleSelector form={f} setForm={setF} brands={brands}/>
   <F label="预算（万韩元）"><input type="number" value={f.budget||''} onChange={e=>setF({...f,budget:e.target.value})}/></F><F label="年份要求"><input value={f.year_request||''} onChange={e=>setF({...f,year_request:e.target.value})}/></F><F label="公里数要求"><input type="number" value={f.mileage_request||''} onChange={e=>setF({...f,mileage_request:e.target.value})}/></F><F label="颜色"><input value={f.color||''} onChange={e=>setF({...f,color:e.target.value})}/></F><F label="贷款"><select value={f.loan||''} onChange={e=>setF({...f,loan:e.target.value})}>{['是','否','待确认'].map(x=><option key={x}>{x}</option>)}</select></F><F label="意向等级"><select value={f.probability||''} onChange={e=>setF({...f,probability:e.target.value})}>{['A-高','B-中','C-低'].map(x=><option key={x}>{x}</option>)}</select></F><F label="状态"><select value={f.status||''} onChange={e=>setF({...f,status:e.target.value})}>{statusList.map(x=><option key={x}>{x}</option>)}</select></F><F label="最后联系"><input type="date" value={f.last_contact||''} onChange={e=>setF({...f,last_contact:e.target.value})}/></F><F label="下次联系"><input type="date" value={f.next_contact||''} onChange={e=>setF({...f,next_contact:e.target.value})}/></F><F label="备注"><textarea value={f.memo||''} onChange={e=>setF({...f,memo:e.target.value})}/></F></div><div className="toolbar" style={{marginTop:14}}><button className="btn" onClick={save}>保存 / 저장</button>{item?.id&&<button className="btn red" onClick={del}>删除</button>}</div></>
  }
  function CarForm({item}:{item?:R}){
   const [f,setF]=useState<R>(item||{customer_id:customers[0]?.id||'',record_date:today(),auction_place:'Glovis',brand:'',model:'',grade:'',year:'',mileage:'',color:'',vehicle_ref:'',market_price:'',expected_price:'',customer_max_price:'',auction_date:today(),result:'待确认',final_price:'',feedback:'',memo:''});
-  useEffect(()=>{if(f.brand)loadModels(f.brand);if(f.brand&&f.model)loadGrades(f.brand,f.model)},[]);
   async function save(){if(!f.customer_id)return alert('请选择客户');const nums=['year','mileage','market_price','expected_price','customer_max_price','final_price'];let o={...f};nums.forEach(k=>o[k]=o[k]?Number(o[k]):null);const r=item?.id?await supabase.from('vehicle_search').update(o).eq('id',item.id):await supabase.from('vehicle_search').insert(o);if(r.error)return alert(r.error.message);setModal(null);load()}
   async function del(){if(item?.id&&confirm('确认删除这条找车记录？')){const r=await supabase.from('vehicle_search').delete().eq('id',item.id);if(r.error)return alert(r.error.message);setModal(null);load()}}
   return <><div className="grid"><F label="客户"><select value={f.customer_id||''} onChange={e=>setF({...f,customer_id:e.target.value})}>{customers.map(c=><option key={c.id} value={c.id}>{c.name} / {c.phone}</option>)}</select></F><F label="日期"><input type="date" value={f.record_date||''} onChange={e=>setF({...f,record_date:e.target.value})}/></F><F label="竞买场"><input value={f.auction_place||''} onChange={e=>setF({...f,auction_place:e.target.value})}/></F>
-  <F label="品牌"><select value={f.brand||''} onChange={async e=>{const brand=e.target.value;setF({...f,brand,model:'',grade:''});await loadModels(brand)}}><option value="">选择品牌</option>{brands.map(x=><option key={x}>{x}</option>)}</select></F><F label="车型"><select value={f.model||''} onChange={async e=>{const model=e.target.value;setF({...f,model,grade:''});await loadGrades(f.brand,model)}}><option value="">选择车型</option>{models.map(x=><option key={x}>{x}</option>)}</select></F><F label="配置"><select value={f.grade||''} onChange={e=>setF({...f,grade:e.target.value})}><option value="">选择配置</option>{grades.map(x=><option key={x}>{x}</option>)}</select></F>
+  <VehicleSelector form={f} setForm={setF} brands={brands}/>
   <F label="年份"><input type="number" value={f.year||''} onChange={e=>setF({...f,year:e.target.value})}/></F><F label="公里数"><input type="number" value={f.mileage||''} onChange={e=>setF({...f,mileage:e.target.value})}/></F><F label="颜色"><input value={f.color||''} onChange={e=>setF({...f,color:e.target.value})}/></F><F label="车辆链接/编号"><input value={f.vehicle_ref||''} onChange={e=>setF({...f,vehicle_ref:e.target.value})}/></F><F label="预计市场价（万）"><input type="number" value={f.market_price||''} onChange={e=>setF({...f,market_price:e.target.value})}/></F><F label="建议最高价（万）"><input type="number" value={f.expected_price||''} onChange={e=>setF({...f,expected_price:e.target.value})}/></F><F label="客户最高价（万）"><input type="number" value={f.customer_max_price||''} onChange={e=>setF({...f,customer_max_price:e.target.value})}/></F><F label="竞拍日期"><input type="date" value={f.auction_date||''} onChange={e=>setF({...f,auction_date:e.target.value})}/></F><F label="结果"><select value={f.result||''} onChange={e=>setF({...f,result:e.target.value})}>{resultList.map(x=><option key={x}>{x}</option>)}</select></F><F label="成交价（万）"><input type="number" value={f.final_price||''} onChange={e=>setF({...f,final_price:e.target.value})}/></F><F label="客户反馈/下一步"><input value={f.feedback||''} onChange={e=>setF({...f,feedback:e.target.value})}/></F><F label="备注"><textarea value={f.memo||''} onChange={e=>setF({...f,memo:e.target.value})}/></F></div><div className="toolbar" style={{marginTop:14}}><button className="btn" onClick={save}>保存</button>{item?.id&&<button className="btn red" onClick={del}>删除</button>}</div></>
  }
  function DealForm({item}:{item?:R}){
