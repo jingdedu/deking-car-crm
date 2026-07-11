@@ -20,7 +20,7 @@ function BTitle({ko,zh}:{ko:string,zh:string}){return <span className="btitle"><
 function Bi({ko,zh}:{ko:string,zh:string}){return <span className="bi"><span className="bi-ko">{ko}</span><span className="bi-zh">{zh}</span></span>}
 function F({label,children}:{label:any,children:any}){return <div className="field"><label>{label}</label>{children}</div>}
 function Logo({className='app-logo'}:{className?:string}){return <img className={className} src="/deking-logo.png" alt="CRM logo"/>}
-function Table({h,rows}:{h:any[],rows:any[][]}){return <div className="tablewrap"><table className="table"><thead><tr>{h.map(x=><th key={typeof x==='string'?x:i}>{x}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((x,j)=><td key={j}>{x}</td>)}</tr>)}</tbody></table></div>}
+function Table({h,rows}:{h:any[],rows:any[][]}){return <div className="tablewrap"><table className="table"><thead><tr>{h.map((x,i)=><th key={typeof x==='string'?x:i}>{x}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((x,j)=><td key={j}>{x}</td>)}</tr>)}</tbody></table></div>}
 function VehicleSelector({form,setForm,brands}:{form:R,setForm:(v:R)=>void,brands:string[]}){
  const [models,setModels]=useState<string[]>([]);
  const [loadingModels,setLoadingModels]=useState(false);
