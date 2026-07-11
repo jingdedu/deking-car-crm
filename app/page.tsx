@@ -12,38 +12,25 @@ function F({label,children}:{label:string,children:any}){return <div className="
 function Table({h,rows}:{h:string[],rows:any[][]}){return <div className="tablewrap"><table className="table"><thead><tr>{h.map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((x,j)=><td key={j}>{x}</td>)}</tr>)}</tbody></table></div>}
 function VehicleSelector({form,setForm,brands}:{form:R,setForm:(v:R)=>void,brands:string[]}){
  const [models,setModels]=useState<string[]>([]);
- const [grades,setGrades]=useState<string[]>([]);
  const [loadingModels,setLoadingModels]=useState(false);
- const [loadingGrades,setLoadingGrades]=useState(false);
 
  useEffect(()=>{
   let active=true;
   setModels([]);
-  setGrades([]);
   if(!form.brand)return;
   setLoadingModels(true);
   supabase.rpc('get_car_models',{p_brand:form.brand}).then(({data,error})=>{
    if(!active)return;
-   if(error){console.error('get_car_models:',error);setModels([])}
-   else setModels((data||[]).map((x:any)=>x.model).filter(Boolean));
+   if(error){
+    console.error('get_car_models:',error);
+    setModels([]);
+   }else{
+    setModels((data||[]).map((x:any)=>x.model).filter(Boolean));
+   }
    setLoadingModels(false);
   });
   return()=>{active=false};
  },[form.brand]);
-
- useEffect(()=>{
-  let active=true;
-  setGrades([]);
-  if(!form.brand||!form.model)return;
-  setLoadingGrades(true);
-  supabase.rpc('get_car_grades',{p_brand:form.brand,p_model:form.model}).then(({data,error})=>{
-   if(!active)return;
-   if(error){console.error('get_car_grades:',error);setGrades([])}
-   else setGrades((data||[]).map((x:any)=>x.grade).filter(Boolean));
-   setLoadingGrades(false);
-  });
-  return()=>{active=false};
- },[form.brand,form.model]);
 
  return <>
   <F label="品牌 / 브랜드">
@@ -58,11 +45,12 @@ function VehicleSelector({form,setForm,brands}:{form:R,setForm:(v:R)=>void,brand
     {models.map(x=><option key={x} value={x}>{x}</option>)}
    </select>
   </F>
-  <F label="配置 / 등급">
-   <select value={form.grade||''} disabled={!form.model||loadingGrades} onChange={e=>setForm({...form,grade:e.target.value})}>
-    <option value="">{loadingGrades?'配置加载中...':'选择配置'}</option>
-    {grades.map(x=><option key={x} value={x}>{x}</option>)}
-   </select>
+  <F label="配置 / 等级 / 트림">
+   <input
+    value={form.grade||''}
+    onChange={e=>setForm({...form,grade:e.target.value})}
+    placeholder="按车辆广告填写，例如：1.6 가솔린 프레스티지"
+   />
   </F>
  </>;
 }
