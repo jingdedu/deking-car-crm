@@ -56,3 +56,4 @@
  .top-title{gap:8px}
  .top-title h1{font-size:16px}
 }
+.quote-terms{margin-top:18px;border-top:2px solid #172033;padding-top:14px;font-size:13px;line-height:1.75}.quote-terms p{margin:8px 0}.quote-law{text-align:center}.quote-confirm{text-align:center;border-top:1px dashed #94a3b8;padding-top:10px}.quote-sign{text-align:center;font-weight:700;margin:18px 0;padding:12px 4px;border-bottom:1px solid #172033}.quote-account{text-align:center;border:2px solid #172033;padding:10px;margin-top:10px}.quote-terms .quote-zh{font-size:60%;color:#7b879a}@media print{.quote-terms{font-size:11px}.quote td{padding:6px 8px}}
