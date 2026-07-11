@@ -1,29 +1,35 @@
-# DeKing CRM Professional V4.1 FULL
+# 德King 韩国二手车 CRM Professional V4.1 正式版
 
-本包已经统一修复：
+## 已完成
 
-- `app/page.tsx` 与 `CarSelector.tsx` Props 不一致导致的 Vercel 编译错误
-- 页面启动时一次加载几十万条车型的问题
-- 品牌 → 车型 → 年份 → 配置四级按需联动
-- 韩国品牌优先排序
+- 客户管理、跟进日志、找车、竞拍、成交利润、Dashboard
+- 品牌 → 车型 → 年份 → 配置四级实时联动
+- 车型数据按需查询，不再把几十万条记录下载到浏览器
 - 品牌、车型、配置搜索
-- 车辆录入时年份自动同步到 `vehicle_search.year`
-- 客户录入时年份仅用于筛选，不写入不存在的客户字段
-- 车型库页面改为轻量品牌列表
+- 韩国品牌优先显示
+- 车辆录入时自动同步年份
+- 中韩双语界面
+- Vercel / Supabase 部署结构
 
-## 安装顺序
+## 部署顺序
 
-1. Supabase SQL Editor 运行：
-   `supabase/01_v4_1_full_rpc.sql`
-2. GitHub 切换到 `v4.1-beta`
-3. 上传本项目全部文件并覆盖同名文件
-4. Commit changes
-5. 等待 Vercel Preview 显示 Ready
-6. 测试：
-   - 客户管理 → 新增客户
-   - 车辆找车 → 新增车辆
-   - 品牌 → 车型 → 年份 → 配置
+1. Supabase SQL Editor 运行 `supabase/01_v4_1_full_rpc.sql`。
+2. 将项目文件覆盖到 GitHub Desktop 本地仓库根目录。
+3. GitHub Desktop 当前分支确认是 `v4.1-beta`。
+4. Commit：`Release V4.1 Official`。
+5. Push origin。
+6. 等待 Vercel Preview 显示 Ready。
 
-环境变量保持：
-- NEXT_PUBLIC_SUPABASE_URL
-- NEXT_PUBLIC_SUPABASE_ANON_KEY
+## Vercel 环境变量
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+## 构建验证
+
+本项目已通过：
+
+```bash
+npm install
+npm run build
+```

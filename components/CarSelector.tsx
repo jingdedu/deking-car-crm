@@ -133,13 +133,13 @@ export default function CarSelector({ form, setForm, syncYear = false }: Props) 
         console.error('get_car_years error:', error);
         setYears([]);
       } else {
-        const result = Array.from(
-          new Set(
+        const result: number[] = Array.from(
+          new Set<number>(
             (data || [])
               .map((row: any) => Number(row.model_year))
               .filter((year: number) => Number.isFinite(year))
           )
-        ).sort((a, b) => b - a);
+        ).sort((a: number, b: number) => b - a);
         setYears(result);
 
         if (selectedYear && !result.includes(Number(selectedYear))) {
@@ -210,7 +210,7 @@ export default function CarSelector({ form, setForm, syncYear = false }: Props) 
     setModelSearch('');
     setGradeSearch('');
 
-    const next = {
+    const next: Record<string, any> = {
       ...form,
       brand,
       model: '',
@@ -225,7 +225,7 @@ export default function CarSelector({ form, setForm, syncYear = false }: Props) 
     setSelectedYear('');
     setGradeSearch('');
 
-    const next = {
+    const next: Record<string, any> = {
       ...form,
       model,
       grade: '',
@@ -239,7 +239,7 @@ export default function CarSelector({ form, setForm, syncYear = false }: Props) 
     setSelectedYear(year);
     setGradeSearch('');
 
-    const next = {
+    const next: Record<string, any> = {
       ...form,
       grade: '',
     };
