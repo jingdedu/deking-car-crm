@@ -75,3 +75,20 @@
   .quote-account{padding:5px;margin-top:4px}
   .quote-total{font-size:14px}
 }
+
+/* 견적서 수수료 항목 강조 */
+.quote-merged tr.fee-brown td{color:#7a4b2a}
+.quote-merged tr.fee-light-blue td{color:#5b9bd5}
+.quote-merged tr.fee-deep-blue td{color:#173f7a}
+.quote-merged tr.fee-mid-blue td{color:#3977b8}
+.quote-merged tr.fee-light-brown td{color:#a77a52}
+.quote-merged tr.fee-strong td:first-child .bi-ko,
+.quote-merged tr.fee-strong td:last-child{font-weight:800}
+.quote-deposit{display:inline-block;margin-top:2px}
+.quote-sign{display:flex;justify-content:center;align-items:center;gap:64px}
+.quote-date{display:inline-flex;align-items:center;white-space:nowrap}
+.quote-date>span{display:inline-block;width:54px}
+@media print{
+ .quote-sign{gap:76px}
+ .quote-date>span{width:62px}
+}

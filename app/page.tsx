@@ -104,14 +104,15 @@ export default function Home(){
   const auctionRate=Math.min(2.8,Math.max(2,Number(f.auction_rate||2.2)));
   const baseAuctionFee=expected*(auctionRate/100);
   const highPriceSurcharge=expected>2850?expected*0.07*0.15:0;
-  const auctionFee=baseAuctionFee+highPriceSurcharge;
+  const auctionFee=expected>0?Math.max(16.5,baseAuctionFee+highPriceSurcharge):0;
   const acquisitionTax=expected*0.07;
   const dealerTransferFee=expected*0.015+10;
   const bondFee=expected*0.007;
   const adminFee=44;
+  const agencyStampFee=4.8;
   const costKeys=['performance_insurance','brokerage_fee'];
   const otherCosts=costKeys.reduce((sum,k)=>sum+Number(f[k]||0),0);
-  const costSubtotal=auctionFee+acquisitionTax+dealerTransferFee+bondFee+adminFee+otherCosts;
+  const costSubtotal=auctionFee+acquisitionTax+dealerTransferFee+bondFee+adminFee+agencyStampFee+otherCosts;
   const total=expected+costSubtotal;
   const fields=[
    ['고객명','客户姓名',f.name],
@@ -121,15 +122,16 @@ export default function Home(){
    ['차종','车型',f.model],
    ['연식','年份',f.year],
    ['예상 낙찰가 (만원)','预计成交价（万韩元）',quoteMoney(f.expected)],
-   ['기본 경매수수료 (만원)','基础拍卖手续费（万韩元）',quoteMoney(baseAuctionFee)],
-   ['고가 추가 수수료 (만원)','高价追加手续费（万韩元）',quoteMoney(highPriceSurcharge)],
-   ['경매수수료 합계 (만원)','拍卖手续费合计（万韩元）',quoteMoney(auctionFee)],
-   ['상사이전비 (만원)','车商过户费（万韩元）',quoteMoney(dealerTransferFee)],
-   ['등·취득세 (만원)','登记及取得税（万韩元）',quoteMoney(acquisitionTax)],
-   ['공채 (만원)','公债费（万韩元）',quoteMoney(bondFee)],
-   ['매도관리비·인지대 (만원)','卖方管理费及印花税（万韩元）',quoteMoney(adminFee)],
-   ['성능보증보험 (만원)','性能保证保险（万韩元）',quoteMoney(f.performance_insurance)],
-   ['매매법정수수료 (만원)','法定交易手续费（万韩元）',quoteMoney(f.brokerage_fee)],
+   ['기본 경매수수료 (만원)','基础拍卖手续费（万韩元）',quoteMoney(baseAuctionFee),'fee-brown'],
+   ['고가 추가 수수료 (만원)','高价追加手续费（万韩元）',quoteMoney(highPriceSurcharge),'fee-brown'],
+   ['경매수수료 합계 (만원)','拍卖手续费合计（万韩元）',quoteMoney(auctionFee),'fee-brown fee-strong'],
+   ['등·취득세 (만원)','登记及取得税（万韩元）',quoteMoney(acquisitionTax),'fee-deep-blue fee-strong'],
+   ['공채 (만원)','公债费（万韩元）',quoteMoney(bondFee),'fee-mid-blue fee-strong'],
+   ['상사이전비 (만원)','车商过户费（万韩元）',quoteMoney(dealerTransferFee),'fee-light-blue fee-strong'],
+   ['매도관리비 (만원)','卖方管理费（万韩元）',quoteMoney(adminFee),'fee-light-blue fee-strong'],
+   ['대행료/인지대등 (만원)','代办费/印花税等（万韩元）',quoteMoney(agencyStampFee),'fee-light-blue fee-strong'],
+   ['성능보증보험 (만원)','性能保证保险（万韩元）',quoteMoney(f.performance_insurance),'fee-light-brown fee-strong'],
+   ['매매법정수수료 (만원)','法定交易手续费（万韩元）',quoteMoney(f.brokerage_fee),'fee-strong'],
    ['이전비·제비용 소계 (만원)','过户及杂费小计（万韩元）',quoteMoney(costSubtotal)],
    ['예상 총액 (만원)','预计总金额（万韩元）',quoteMoney(total)],
    ['유효기간','有效期',f.valid_until],
@@ -149,7 +151,7 @@ export default function Home(){
    ['valid_until','유효기간','有效期'],
    ['memo','메모','备注']
   ];
-  return <><div className="card no-print"><h2><BTitle ko="견적 입력" zh="报价内容"/></h2><div className="grid"><F label={<Bi ko="고객 선택" zh="选择客户"/>}><select value={f.customer_id} onChange={e=>pick(e.target.value)}><option value="">고객 선택 / 请选择</option>{customers.map(c=><option key={c.id} value={c.id}>{c.name} / {c.phone}</option>)}</select></F>{inputs.map(([k,ko,zh])=><F key={k} label={<Bi ko={ko} zh={zh}/>}><input type={costKeys.concat(['expected','auction_rate']).includes(k)?'number':k==='valid_until'?'date':'text'} min={k==='auction_rate'?'2':undefined} max={k==='auction_rate'?'2.8':undefined} step={k==='auction_rate'?'0.1':undefined} value={f[k]||''} onChange={e=>setF({...f,[k]:e.target.value})}/></F>)}<F label={<Bi ko="경매수수료 합계 (자동계산)" zh="拍卖手续费合计（自动计算）"/>}><input type="number" value={Math.round(auctionFee)} readOnly/></F></div><p className="muted quote-fee-rule">기본 경매수수료는 예상 낙찰가 × 선택 비율(2.0%~2.8%)로 계산됩니다. 예상 낙찰가가 2,850만원을 초과하면 예상 낙찰가 × 7% × 15%가 추가됩니다.<br/><span className="quote-zh">基础拍卖手续费按预计成交价 × 可调比例（2.0%～2.8%）计算；预计成交价高于2,850万韩元时，再追加预计成交价 × 7% × 15%。</span></p><div className="toolbar" style={{marginTop:14}}><button className="btn" onClick={()=>window.print()}><Bi ko="인쇄 · PDF 저장" zh="打印 / 保存 PDF"/></button></div></div><div className="card quote"><h2><span className="quote-title"><Logo className="quote-logo"/><BTitle ko="중고차 경매대행 견적서" zh="韩国二手车代拍报价单"/></span></h2><table className="quote-merged"><tbody><tr><th><Bi ko="항목" zh="项目"/></th><th><Bi ko="입력 내용" zh="填写内容"/></th></tr>{fields.map(x=><tr key={x[0]}><td><Bi ko={x[0]} zh={x[1]}/></td><td className={x[0].startsWith('예상 총액')?'quote-total':''}>{x[2]}</td></tr>)}</tbody></table><div className="quote-terms"><p className="quote-law"><b>상기 금액은 자동차관리법 제65조, 제58조 제4항 및 시행령 제122조에 근거하여 산정된 금액입니다.</b><br/><span className="quote-zh">上述金额依据韩国《汽车管理法》第65条、第58条第4项及施行令第122条核算。</span></p><p>• 경매차량은 실제 거래금액에 따라 이전비가 변동될 수 있습니다.<br/><span className="quote-zh">拍卖车辆的过户费用可能根据实际成交金额发生变化。</span><br/>• 현대글로비스 발행 성능점검기록부를 반드시 확인하시기 바랍니다. (매수인)<br/><span className="quote-zh">买受人须确认现代 Glovis 出具的车辆性能检查记录。</span><br/>• 양수인은 직접 방문하여 실차 확인 후 진행함을 원칙으로 합니다. 다만, 비대면 구입 요청 시 사진 및 동영상으로 차량 상태를 확인한 후 구매하는 것에 동의한 것으로 봅니다.<br/><span className="quote-zh">原则上买受人应到场确认实车；如申请非面对面购车，则视为同意通过照片及视频确认车辆状态后购买。</span></p><p className="quote-confirm"><b>본인은 이전비 내역을 고지받았음을 확인합니다.</b><br/><span className="quote-zh">本人确认已收到并了解过户费用明细。</span></p><div className="quote-sign">20&nbsp;&nbsp;&nbsp;&nbsp;년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 매수인 / 买受人: ____________________ (서명 / 签名)</div><div className="quote-account"><b>차량대금 입금계좌 / 车辆款账户</b><br/>KEB하나 321-890693-33207 (이강수)</div></div></div></>
+  return <><div className="card no-print"><h2><BTitle ko="견적 입력" zh="报价内容"/></h2><div className="grid"><F label={<Bi ko="고객 선택" zh="选择客户"/>}><select value={f.customer_id} onChange={e=>pick(e.target.value)}><option value="">고객 선택 / 请选择</option>{customers.map(c=><option key={c.id} value={c.id}>{c.name} / {c.phone}</option>)}</select></F>{inputs.map(([k,ko,zh])=><F key={k} label={<Bi ko={ko} zh={zh}/>}><input type={costKeys.concat(['expected','auction_rate']).includes(k)?'number':k==='valid_until'?'date':'text'} min={k==='auction_rate'?'2':undefined} max={k==='auction_rate'?'2.8':undefined} step={k==='auction_rate'?'0.1':undefined} value={f[k]||''} onChange={e=>setF({...f,[k]:e.target.value})}/></F>)}<F label={<Bi ko="경매수수료 합계 (자동계산·최저 16.5만원)" zh="拍卖手续费合计（自动计算）"/>}><input type="number" value={Math.round(auctionFee)} readOnly/></F></div><p className="muted quote-fee-rule">기본 경매수수료는 예상 낙찰가 × 선택 비율(2.0%~2.8%)로 계산됩니다. 예상 낙찰가가 2,850만원을 초과하면 예상 낙찰가 × 7% × 15%가 추가되며, 경매수수료 합계는 최저 16.5만원입니다.<br/><span className="quote-zh">基础拍卖手续费按预计成交价 × 可调比例（2.0%～2.8%）计算；预计成交价高于2,850万韩元时，再追加预计成交价 × 7% × 15%；拍卖手续费合计最低16.5万韩元。</span></p><div className="toolbar" style={{marginTop:14}}><button className="btn" onClick={()=>window.print()}><Bi ko="인쇄 · PDF 저장" zh="打印 / 保存 PDF"/></button></div></div><div className="card quote"><h2><span className="quote-title"><Logo className="quote-logo"/><BTitle ko="중고차 경매대행 견적서" zh="韩国二手车代拍报价单"/></span></h2><table className="quote-merged"><tbody><tr><th><Bi ko="항목" zh="项目"/></th><th><Bi ko="입력 내용" zh="填写内容"/></th></tr>{fields.map(x=><tr key={x[0]} className={x[3]||''}><td><Bi ko={x[0]} zh={x[1]}/></td><td className={x[0].startsWith('예상 총액')?'quote-total':''}>{x[2]}</td></tr>)}</tbody></table><div className="quote-terms"><p className="quote-law"><b>상기 금액은 자동차관리법 제65조, 제58조 제4항 및 시행령 제122조에 근거하여 산정된 금액입니다.</b><br/><span className="quote-zh">上述金额依据韩国《汽车管理法》第65条、第58条第4项及施行令第122条核算。</span></p><p>• 경매차량은 실제 거래금액에 따라 이전비가 변동될 수 있습니다.<br/><span className="quote-zh">拍卖车辆的过户费用可能根据实际成交金额发生变化。</span><br/><span className="quote-deposit"><b>• 선계약금: 경매가의 20% 선납 (유찰 시 반납 조건, 낙찰 후 포기 시 계약금 상사 귀속)</b><br/><span className="quote-zh">预付合同金：拍卖价的20%预付（流拍时退还；中标后放弃时合同金归车商所有）。</span></span><br/>• 경매장 발행 성능점검기록부를 반드시 확인하시기 바랍니다. (매수인)<br/><span className="quote-zh">买受人须确认拍卖场出具的车辆性能检查记录。</span><br/>• 양수인은 직접 방문하여 실차 확인 후 진행함을 원칙으로 합니다. 다만, 비대면 구입 요청 시 사진 및 동영상으로 차량 상태를 확인한 후 구매하는 것에 동의한 것으로 봅니다.<br/><span className="quote-zh">原则上买受人应到场确认实车；如申请非面对面购车，则视为同意通过照片及视频确认车辆状态后购买。</span></p><p className="quote-confirm"><b>본인은 이전비 내역을 고지받았음을 확인합니다.</b><br/><span className="quote-zh">本人确认已收到并了解过户费用明细。</span></p><div className="quote-sign"><span className="quote-date">20<span></span>년<span></span>월<span></span>일</span><span>매수인 / 买受人: ____________________ (서명 / 签名)</span></div><div className="quote-account"><b>차량대금 입금계좌 / 车辆款账户</b><br/>KEB하나 321-890693-33207 (이강수)</div></div></div></>
  }
  function content(){
   if(!process.env.NEXT_PUBLIC_SUPABASE_URL)return <div className="notice">Vercel에서 NEXT_PUBLIC_SUPABASE_URL 및 NEXT_PUBLIC_SUPABASE_ANON_KEY를 먼저 설정하세요. / 请先在 Vercel 设置环境变量。</div>;
